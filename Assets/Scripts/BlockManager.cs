@@ -58,6 +58,7 @@ public class BlockManager : MonoBehaviour
 	private ArrayList clearPieceGameObjects;
 	private ArrayList dropDownIndex;
 	private bool locked=false;
+	private bool landing=false;
 	
     void Start()
     {
@@ -520,10 +521,10 @@ public class BlockManager : MonoBehaviour
 	        {
 	            return;
 	        }
-			
-			int point = CheckCompletedRows();
-			UpdateScore(point);		
-			
+			if(!landing){
+				int point = CheckCompletedRows();
+				UpdateScore(point);
+			}			
 		       
 	        timeSinceHorizontalShift += Time.deltaTime;
 	
@@ -606,12 +607,12 @@ public class BlockManager : MonoBehaviour
 		return num_completed_rows;
 	}
 	
-	private void DropAllHigherRows(int y)
+	private void DropAllHigherRows(int y,int nums)
 	{
 		
 		for(int i = y;i<MapY;i++)
 		{
-			DropRow(i, 1);
+			DropRow(i, nums);
 		}
 	}
 	
@@ -635,7 +636,7 @@ public class BlockManager : MonoBehaviour
 				tempGo.renderer.material.color= Color.white;
 			}			
 			audio.PlayOneShot(CompleteRowsSound);
-		    StartCoroutine(Wait(tColor));			
+		    StartCoroutine(Wait(tColor,rows));			
 		}
 		
 		score += rows*100;
@@ -654,7 +655,7 @@ public class BlockManager : MonoBehaviour
         }
     }
 	
-	private IEnumerator Wait(Color t_color) {
+	private IEnumerator Wait(Color t_color,int rows) {
 		locked=true;		
 		foreach(BlockPosition bp in clearPieceGameObjects){
 			GameObject tempGo = GetBlockGameObjectAtPosition(bp);
@@ -671,12 +672,13 @@ public class BlockManager : MonoBehaviour
 			RemoveBlock(bp);
 		}
 		clearPieceGameObjects.Clear();
-		if(dropDownIndex.Count>0){
-			foreach(int i in dropDownIndex){
-				DropAllHigherRows(i);
-			}
-			dropDownIndex.Clear();
+		landing=true;
+		foreach(int i in dropDownIndex){
+			DropAllHigherRows(i,rows);
 		}
+		dropDownIndex.Clear();
+		landing=false;
+
 	}
 	
 	private bool BlockIsEmpty(int x, int y)
