@@ -18,7 +18,7 @@ enum Hand
 
 static public class CheckHand
 {
-	public static int Rank(Card[] a)
+	public static int Rank(Card[] a,bool check_one_pair)
         {
 		
             int[] b = new int[a.Length];
@@ -85,10 +85,12 @@ static public class CheckHand
             if (tmp1 > 0 && tmp2 > 0){
                 return (int)Hand.two_pair;// 2 pairs
 			}
-			
-            if (tmp1 > 0){//1 pairs
-                return (int)Hand.one_pair;
+		
+			if(check_one_pair){
+	            if (tmp1 > 0){//1 pairs
+	                return (int)Hand.one_pair;
+				}
 			}
             return 0;
-     }
+     }	
 }

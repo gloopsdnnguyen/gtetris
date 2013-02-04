@@ -77,14 +77,5 @@ public class Deck
 	{
 		foreach (Card i in a)
 			deck.Add (i);
-	}
-	
-	public int Count {
-		get {
-			int i = 0;
-			foreach (Card n in deck)
-				i++;
-			return i;
-		}
-	}
+	}	
 }

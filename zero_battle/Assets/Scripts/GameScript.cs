@@ -17,9 +17,7 @@ public class GameScript : MonoBehaviour {
 	public int[,] aPositionsPicked;
 	public GUIStyle cardStyle;
 	public Deck pokerDeck;
-	private bool isShuffle=true;
 	private bool[,] btnEnabled;
-	private bool is_new_deck=false;
 	
 	void Start () {
 		pokerDeck = new Deck();
