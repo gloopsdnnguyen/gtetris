@@ -56,6 +56,9 @@ public class Manager : MonoBehaviour
 	private List<Monster> monsters;
 	private List<Monster> enemies;
 		
+	private Monster targetEnemy=null;	
+	private Monster activeMonster=null;
+	
 	private Deck pokerDeck;
 	private bool available_shuffle=true;	
 	
@@ -80,9 +83,11 @@ public class Manager : MonoBehaviour
 	private GameObject comboTopText=null;
 	private GameObject comboTopNumber=null;
 	private int skill_selected_count=0;
-	private GameObject targetEnemy=null;	
-	private GameObject activeMonster;
+	private GameObject targetEnemyGameObject=null;	
+	private GameObject activeMonsterGameObject;
 	private GameObject activeSkill;
+	
+	
 	
 	private int active_monster_index=2;
 	private List<int> combos;
@@ -150,7 +155,7 @@ public class Manager : MonoBehaviour
 		e1.SP=100;
 		e1.type=2;
 		e1.position=1;
-		monsters.Add(e1);
+		enemies.Add(e1);
 		
 		Monster e2 = new Monster();
 		e2.name="Enemy 2";
@@ -159,7 +164,7 @@ public class Manager : MonoBehaviour
 		e2.SP=100;
 		e2.type=2;
 		e2.position=2;
-		monsters.Add(e2);
+		enemies.Add(e2);
 		
 		Monster e3 = new Monster();
 		e3.name="Enemy 3";
@@ -168,10 +173,10 @@ public class Manager : MonoBehaviour
 		e3.SP=100;
 		e3.type=2;
 		e3.position=3;
-		monsters.Add(e3);
+		enemies.Add(e3);
 		
 		buildBattleArea();
-		BuildEnemy();
+		buildEnemy();
 		buildMonster();
 		buildSkill();
     }
@@ -260,14 +265,15 @@ public class Manager : MonoBehaviour
 		}
 	}
 	
-	private void BuildEnemy(){
-		for(int x=0; x<3; x++)
-		{				
-			GameObject enemyBlock = (GameObject)Instantiate(CharacterPrefab, new Vector3(x*2-3, 4.5f, 1.0f), Quaternion.Euler(0.0f,0.0f,0.0f));//fix me,bullshit here
-			enemyBlock.transform.GetChild(0).renderer.material.mainTexture= (Texture2D)Resources.Load("m"+(x+1));	
+	private void buildEnemy(){
+		removeObjectByTag("Monster");		
+		foreach(Monster m in enemies){		
+			GameObject enemyBlock = (GameObject)Instantiate(CharacterPrefab, new Vector3(m.position*2-5, 4.5f, 1.0f), Quaternion.Euler(0.0f,0.0f,0.0f));//fix me,bullshit here
+			enemyBlock.transform.GetChild(0).renderer.material.mainTexture= (Texture2D)Resources.Load(m.image);	
 			enemyBlock.transform.GetChild(2).GetComponent<SPBar>().setType(2);
-			enemyBlock.transform.GetChild(0).tag="Enemy";
-			enemyBlockObjects[0,x]=enemyBlock;
+			enemyBlock.transform.GetChild(0).tag="Enemy"+m.position.ToString();
+			enemyBlock.tag="Enemy"+m.position.ToString();
+			enemyBlockObjects[0,m.position-1]=enemyBlock;
 		}
 	}
 	
@@ -280,7 +286,7 @@ public class Manager : MonoBehaviour
 				monsterBlock.transform.localScale=Vector3.one*0.5f;
 				monsterBlock.transform.GetChild(0).renderer.material.mainTexture= (Texture2D)Resources.Load(m.image);
 				monsterBlock.tag="Monster";			
-				activeMonster=monsterBlock;
+				activeMonsterGameObject=monsterBlock;
 				GameObject monsterStat = (GameObject)Instantiate(MonsterStatPrefab, new Vector3(0.5f,0.5f,1f),Quaternion.identity);//fixme
 				monsterStat.guiText.text =m.name+"\nHP\nSP";
 			}else{
@@ -346,16 +352,15 @@ public class Manager : MonoBehaviour
 		}
 	}
 	
-	
-	void Update(){		
 		
+	void Update(){		
 		if(generateNewComboNumber){
 			displayComboIndex();
 			displayOnePairCombo();
 			generateNewComboNumber=false;
 		}		
 		
-		if(targetEnemy!=null){
+		if(targetEnemyGameObject!=null){
 			skill_selectable=true;	
 			card_selectable=false;
 		}
@@ -386,10 +391,10 @@ public class Manager : MonoBehaviour
 					selectSkill(hit.transform.gameObject);
 					attackEnemy();
 				}
-				if(enemy_selectable&& hit.collider.tag=="Enemy"){
+				if(enemy_selectable&& (hit.collider.tag=="Enemy1"||hit.collider.tag=="Enemy2"||hit.collider.tag=="Enemy3") ){
 					selectEnemy(hit.transform.parent.gameObject);
 					audio.PlayOneShot(pickAudio);
-					targetEnemy=hit.transform.parent.gameObject;	
+					targetEnemyGameObject=hit.transform.parent.gameObject;	
 				}				
 	      }
 	   	}
@@ -714,18 +719,22 @@ public class Manager : MonoBehaviour
 		
 		//auto select enemy
 		selectEnemy(enemyBlockObjects[0,0]);
-		targetEnemy=enemyBlockObjects[0,0];
+		targetEnemyGameObject=enemyBlockObjects[0,0];
 	}	
 	
 	private void resumeEnemyGaugeBar(){
 		foreach(GameObject enemies in enemyBlockObjects){
-			enemies.transform.GetChild(2).GetComponent<SPBar>().resumeTime();
+			if(enemies!=null){
+				enemies.transform.GetChild(2).GetComponent<SPBar>().resumeTime();
+			}
 		}
 	}
 	
 	private void pauseEnemyGaugeBar(){
 		foreach(GameObject enemies in enemyBlockObjects){
-			enemies.transform.GetChild(2).GetComponent<SPBar>().pauseTime();
+			if(enemies!=null){
+				enemies.transform.GetChild(2).GetComponent<SPBar>().pauseTime();
+			}
 		}
 	}
 	
@@ -741,12 +750,22 @@ public class Manager : MonoBehaviour
 	private IEnumerator attackAnimation(){
 		//yield return new WaitForSeconds(0.5f);		
 		audio.PlayOneShot(handAudio);			
-		Vector3 movePos =targetEnemy.transform.position;
+		Vector3 movePos =targetEnemyGameObject.transform.position;
 		movePos.x-=0.0625f;
-		iTween.PunchPosition(targetEnemy, iTween.Hash("x", movePos.x));		
+		iTween.PunchPosition(targetEnemyGameObject, iTween.Hash("x", movePos.x));				
 		
-		targetEnemy.transform.GetChild(1).GetComponent<HPBar>().AddjustCurrentHP(-10);
-		activeMonster.transform.GetChild(2).GetComponent<SPBar>().AddjustCurrentSP(-10);				
+		targetEnemy.HP-=50;
+		targetEnemyGameObject.transform.GetChild(1).GetComponent<HPBar>().AddjustCurrentHP(-50);
+		activeMonsterGameObject.transform.GetChild(2).GetComponent<SPBar>().AddjustCurrentSP(-50);	
+		
+		if(targetEnemy.HP<=0){
+			targetEnemy.HP=0;
+		}
+		if(targetEnemy.HP==0){
+			enemies.Remove(targetEnemy);
+			DestroyImmediate(enemyBlockObjects[0,targetEnemy.position-1]);		
+			targetEnemyGameObject=null;
+		}	
 		reset();
 		selectedCards.Clear();		
 		selectedBlockObjects  = new GameObject[Screen.width, Screen.height];	
@@ -763,7 +782,7 @@ public class Manager : MonoBehaviour
 	private void reset(){
 		comboTopText=null;
 		combos.Clear();
-		targetEnemy=null;
+		targetEnemyGameObject=null;
 		active_monster_index--;
 		if(active_monster_index<0){
 			active_monster_index=0;
@@ -913,7 +932,19 @@ public class Manager : MonoBehaviour
 		iTween.ColorTo(selectSkillBlock, iTween.Hash("r",180.0f/255.0f,"g",117.0f/255.0f,"b",0,"a",1,"looptype","pingPong","time",0.125f));
 	}
 	
-	private void selectEnemy(GameObject obj){				
+	private void selectEnemy(GameObject obj){		
+		switch(obj.tag){
+			case "Enemy1":
+				targetEnemy=enemies.Find(Monster => Monster.position ==1);
+				break;
+			case "Enemy2":
+				targetEnemy=enemies.Find(Monster => Monster.position ==2);
+				break;
+			case "Enemy3":
+				targetEnemy=enemies.Find(Monster => Monster.position ==3);
+				break;			
+		}
+		Debug.Log(targetEnemy);
 		DestroyImmediate(selectEnemyBlock);
 		selectEnemyBlock = (GameObject)Instantiate(TargetSelectPrefab, new Vector3(obj.transform.position.x+1,3.5f,0.5f), Quaternion.Euler(0.0f,180.0f,0.0f));
 		iTween.ScaleTo(selectEnemyBlock,iTween.Hash("x",1.0f,"y",1.0f,"looptype","pingPong","time",0.25));
