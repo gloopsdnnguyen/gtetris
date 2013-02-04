@@ -82,10 +82,13 @@ public class Manager : MonoBehaviour
 	private int skill_selected_count=0;
 	private GameObject targetEnemy=null;	
 	private GameObject activeMonster;
+	private GameObject activeSkill;
+	
 	private int active_monster_index=2;
 	private List<int> combos;
 	private int numberOnePairs=0;
 	private GameObject selectEnemyBlock;
+	private GameObject selectSkillBlock;
 	
 	private GameObject largeComboNumber;
 	private GameObject largeComboType;
@@ -139,6 +142,33 @@ public class Manager : MonoBehaviour
 		m3.type=1;
 		m3.position=3;
 		monsters.Add(m3);
+		
+		Monster e1 = new Monster();
+		e1.name="Enemy 1";
+		e1.image="m1";
+		e1.HP=100;
+		e1.SP=100;
+		e1.type=2;
+		e1.position=1;
+		monsters.Add(e1);
+		
+		Monster e2 = new Monster();
+		e2.name="Enemy 2";
+		e2.image="m2";
+		e2.HP=100;
+		e2.SP=100;
+		e2.type=2;
+		e2.position=2;
+		monsters.Add(e2);
+		
+		Monster e3 = new Monster();
+		e3.name="Enemy 3";
+		e3.image="m3";
+		e3.HP=100;
+		e3.SP=100;
+		e3.type=2;
+		e3.position=3;
+		monsters.Add(e3);
 		
 		buildBattleArea();
 		BuildEnemy();
@@ -339,7 +369,7 @@ public class Manager : MonoBehaviour
 	   	{
 	      ray  = Camera.main.ScreenPointToRay(Input.mousePosition);
 	      if (Physics.Raycast(ray, out hit))
-	      {						
+	      {							
 				BlockPosition pos2d=Get2DPosition(hit.transform.gameObject.transform);	
 				if(card_selectable&& hit.collider.tag=="Card" ){
 					if(isBlockSelected(pos2d)){
@@ -350,7 +380,10 @@ public class Manager : MonoBehaviour
 						selectBlock(pos2d, true);	
 					}	
 				}
-				if(skill_selectable&& hit.collider.tag=="Skill"){
+				if(skill_selectable&& hit.collider.tag=="Skill"){					
+					activeSkill=hit.transform.gameObject;
+					audio.PlayOneShot(pickAudio);
+					selectSkill(hit.transform.gameObject);
 					attackEnemy();
 				}
 				if(enemy_selectable&& hit.collider.tag=="Enemy"){
@@ -422,31 +455,31 @@ public class Manager : MonoBehaviour
 	
 	private void ShuffleCard(){	
 		available_shuffle=false;				
-		StartCoroutine(MoveOut());
-		StartCoroutine(MoveBack());			
+		StartCoroutine(moveOut());
+		StartCoroutine(moveBack());			
 	}
 	
-	private IEnumerator MoveOut() {				
+	private IEnumerator moveOut() {				
 		pauseEnemyGaugeBar();
 		//yield return new WaitForSeconds(0.5f);
 		audio.PlayOneShot(moveAudio);		
-		for(int k=rows-1;k>=0;k--){
-			for(int y=0;y<cols;y++){
-				if(selectedBlocks[y,k]==0){
-					Vector3 movePos =cardBlockObjects[y,k].transform.position;
-					tmpPos[y,k]=cardBlockObjects[y,k].transform.position;
+		for(int y=rows-1;y>=0;y--){			
+			for(int x=0;x<cols;x++){
+				if(selectedBlocks[x,y]==0){
+					Vector3 movePos =cardBlockObjects[x,y].transform.position;
+					tmpPos[x,y]=cardBlockObjects[x,y].transform.position;
 					movePos.x-=150;
-					iTween.MoveTo(cardBlockObjects[y,k], iTween.Hash("x", movePos.x, "easeType", "EaseInOutSine", "delay", .1));
+					iTween.MoveTo(cardBlockObjects[x,y], iTween.Hash("x", movePos.x, "easeType", "EaseInOutSine", "delay", .1));
 				}				
-			}	
-			if(k>0){
+			}				
+			if(y>0){
 				yield return new WaitForSeconds(0.0625f);
 			}
 		}		
 	}
 	
 	
-	private IEnumerator MoveBack() {
+	private IEnumerator moveBack() {
 		
 		yield return new WaitForSeconds(0.25f);
 		
@@ -488,6 +521,42 @@ public class Manager : MonoBehaviour
 			}
 		}
 		available_checkhand=true;
+	}
+	
+	private IEnumerator moveBackDeal() {
+		
+		yield return new WaitForSeconds(0.25f);
+		
+		pokerDeck = new Deck();
+		pokerDeck.Shuffle();   
+		
+		cardsDraw = new List<Card>();
+		selectedCards= new List<Card>();	
+		
+		for(int i=0; i<rows; i++)
+		{					
+			for(int j=0; j<cols; j++)
+			{
+				cardsOnBoard[i,j] =pokerDeck.Draw();
+				cardsDraw.Add(cardsOnBoard[i,j]);
+				cardBlockObjects[i,j].transform.localScale=Vector3.one *0.95f;
+				cardBlockObjects[i,j].renderer.material.mainTexture = (Texture2D)Resources.Load(cardsOnBoard[i,j].ToString());
+				cardBlockObjects[i,j].renderer.material.shader=lightShader;
+				selectedBlocks[i,j]=0;
+			}
+		}
+		
+		for(int k=rows-1;k>=0;k--){
+			for(int y=0;y<cols;y++){
+				iTween.MoveTo(cardBlockObjects[y,k], iTween.Hash("x", tmpPos[y,k].x, "easeType", "EaseInOutSine", "delay", .1));				
+			}				
+			yield return new WaitForSeconds(0.125f);			
+		}				
+		audio.PlayOneShot(moveAudio);
+		
+		available_checkhand=false;
+		card_selectable=true;
+		available_shuffle=true;
 	}
 	
 	private IEnumerator Check() {	
@@ -665,25 +734,31 @@ public class Manager : MonoBehaviour
 	}
 	
 	private void attackEnemy(){		
-		enemy_selectable=false;
-		StartCoroutine(attackAnimation());
-		targetEnemy.transform.GetChild(1).GetComponent<HPBar>().AddjustCurrentHP(-10);
-		activeMonster.transform.GetChild(2).GetComponent<SPBar>().AddjustCurrentSP(-10);
-		deal();		
+		enemy_selectable=false;		
+		StartCoroutine(attackAnimation());	
 	}
 	
 	private IEnumerator attackAnimation(){
-		yield return new WaitForSeconds(2.5f);
-	}
-	
-	private void deal(){
-		resumeEnemyGaugeBar();
-		removeObjectByTag("Picker");
+		//yield return new WaitForSeconds(0.5f);		
+		audio.PlayOneShot(handAudio);			
+		Vector3 movePos =targetEnemy.transform.position;
+		movePos.x-=0.0625f;
+		iTween.PunchPosition(targetEnemy, iTween.Hash("x", movePos.x));		
+		
+		targetEnemy.transform.GetChild(1).GetComponent<HPBar>().AddjustCurrentHP(-10);
+		activeMonster.transform.GetChild(2).GetComponent<SPBar>().AddjustCurrentSP(-10);				
 		reset();
-		buildBattleArea();		
-		buildSkill();	
+		selectedCards.Clear();		
+		selectedBlockObjects  = new GameObject[Screen.width, Screen.height];	
+		removeObjectByTag("Picker");		
+		available_shuffle=false;	
+		yield return new WaitForSeconds(1.0f);
+		StartCoroutine(moveOut());
+		StartCoroutine(moveBackDeal());					
+		resumeEnemyGaugeBar();		
 		swapMonster();
 	}
+	
 	
 	private void reset(){
 		comboTopText=null;
@@ -693,12 +768,14 @@ public class Manager : MonoBehaviour
 		if(active_monster_index<0){
 			active_monster_index=0;
 		}
+		in_checking_hand=false;
 		numberOnePairs=0;
 		DestroyImmediate(selectEnemyBlock);
 		DestroyImmediate(largeComboNumber);
 		DestroyImmediate(largeComboType);
 		smallComboTypeBlock.Clear();
 		smallComboNumberBlock.Clear();
+		canDisplayOnePairCombo=true;
 	}
 	
 	private void swapMonster(){
@@ -749,7 +826,6 @@ public class Manager : MonoBehaviour
 		smallComboType.tag="SmallCombo";
 		smallComboType.guiTexture.texture =(Texture)Resources.Load("onepair");
 		smallComboNumber = (GameObject)Instantiate(SmallComboNumberPrefab, new Vector3(0.5f,0.5f,0.5f), Quaternion.identity);
-		Debug.Log(number);
 		smallComboNumber.guiTexture.texture=(Texture)Resources.Load(number.ToString()+"p");
 		smallComboNumber.tag="SmallCombo";
 		
@@ -824,6 +900,17 @@ public class Manager : MonoBehaviour
 		    DestroyImmediate(c);
 		}
 		
+	}
+	
+	private void selectSkill(GameObject obj){
+		DestroyImmediate(selectSkillBlock);
+		Vector3 tmp = obj.transform.position;
+		tmp.z=0.5f;
+		selectSkillBlock = (GameObject)Instantiate(PickerPrefab, tmp, Quaternion.Euler(0.0f,180.0f,0.0f));	
+		selectSkillBlock.renderer.material.color = new Color(1,166.0f/255.0f,0,1);
+		selectSkillBlock.transform.localScale=Vector3.one *0.9f;
+		selectSkillBlock.tag="Picker";
+		iTween.ColorTo(selectSkillBlock, iTween.Hash("r",180.0f/255.0f,"g",117.0f/255.0f,"b",0,"a",1,"looptype","pingPong","time",0.125f));
 	}
 	
 	private void selectEnemy(GameObject obj){				
