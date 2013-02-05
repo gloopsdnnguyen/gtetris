@@ -38,6 +38,12 @@ public class Manager : MonoBehaviour
 	public GameObject LargeComboNumberPrefab;
 	public GameObject LargeComboTypePrefab;
 	public GameObject LineRenderPrefab;
+	public GameObject ThunderEffectPrefab;
+	public GameObject FireEffectPrefab;
+	public GameObject IceEffectPrefab;
+	public GameObject NormalEffectPrefab;
+	public GameObject WindEffectPrefab;
+	public GameObject DamageNumberPrefab;
 	
     private int cols = 5;
     private int rows = 5;    
@@ -55,7 +61,8 @@ public class Manager : MonoBehaviour
 	private List<Skill> selectedSkills= new List<Skill>();
 	private List<Monster> monsters;
 	private List<Monster> enemies;
-		
+	private List<Skill> skills;
+	
 	private Monster targetEnemy=null;	
 	private Monster activeMonster=null;
 	
@@ -68,6 +75,7 @@ public class Manager : MonoBehaviour
 	public AudioClip moveAudio;
 	public AudioClip handAudio;
 	public AudioClip arcadeAudio;
+	public AudioClip skillAudio;
 	
 	private Vector3[,] tmpPos=new Vector3[5, 5];
 	private bool available_checkhand=false;
@@ -77,7 +85,8 @@ public class Manager : MonoBehaviour
 	private bool enemy_selectable=false;
 	
 	private Shader lightShader;
-	private Shader darkShader;	
+	private Shader darkShader;
+	private Shader fadeShader;
 	
 	private bool generateNewComboNumber=false;
 	private GameObject comboTopText=null;
@@ -106,6 +115,7 @@ public class Manager : MonoBehaviour
     {      
 		lightShader = Shader.Find("Unlit/Transparent");
 		darkShader  = Shader.Find("Transparent/Diffuse");
+		fadeShader = Shader.Find("Unlit/UnlitAlphaWithFade");
 		hit=new RaycastHit();
 		ray=new Ray();		
 		selectedCards =  new List<Card> (); 
@@ -288,8 +298,7 @@ public class Manager : MonoBehaviour
 				monsterBlock.tag="Monster";			
 				activeMonsterGameObject=monsterBlock;
 				GameObject monsterStat = (GameObject)Instantiate(MonsterStatPrefab, new Vector3(0.5f,0.5f,1f),Quaternion.identity);//fixme
-				monsterStat.guiText.text =m.name+"\nHP\nSP";
-				
+				monsterStat.guiText.text =m.name+"\nHP\nSP";				
 				monsterBlockObjects[0,m.position-1]=monsterBlock;
 			}else{
 				GameObject monsterBlock = (GameObject)Instantiate(CharacterPrefab, Get3DPosition(pos), Quaternion.identity);				  
@@ -360,6 +369,7 @@ public class Manager : MonoBehaviour
 	}
 		
 	private IEnumerator monsterAttackedAnimation(){
+		pauseEnemyGaugeBar();
 		yield return new WaitForSeconds(0.25f);
 		GameObject monsterBlock;
 		foreach(Monster m in monsters){
@@ -390,7 +400,8 @@ public class Manager : MonoBehaviour
 				if(enemies.transform.GetChild(2).GetComponent<SPBar>().enemy_attack){
 					randomAttackMonster();
 					enemies.transform.GetChild(2).GetComponent<SPBar>().setAttack();
-				}
+					break;
+				}				
 			}
 		}
 		if(generateNewComboNumber){
@@ -467,13 +478,15 @@ public class Manager : MonoBehaviour
 	
 	private void SetHightlight(GameObject obj,BlockPosition pos){
 		Vector3 tmp = obj.transform.position;
+		tmp.x+=0.45f;
+		tmp.y-=0.45f;
 		tmp.z=0.5f;
 		GameObject pickerBlock = (GameObject)Instantiate(PickerPrefab, tmp, Quaternion.Euler(0.0f,180.0f,0.0f));	
 		selectedBlockObjects[pos.x, pos.y] = pickerBlock;
 		pickerBlock.tag="Picker";	
 		pickerBlock.renderer.material.color = new Color(1,166.0f/255.0f,0,1);
 		iTween.ColorTo(pickerBlock, iTween.Hash("name","h"+pos.x+"_"+pos.y,"r",180.0f/255.0f,"g",117.0f/255.0f,"b",0,"a",1,"looptype","pingPong","time",0.125f));
-		pickerBlock.transform.localScale=Vector3.one *0.95f;	
+		pickerBlock.transform.localScale=Vector3.one *0.45f;	
 	}
 	
 	
@@ -543,7 +556,6 @@ public class Manager : MonoBehaviour
 					cardsOnBoard[i,j] =pokerDeck.Draw();	
 				}
 				cardsDraw.Add(cardsOnBoard[i,j]);
-				cardBlockObjects[i,j].transform.localScale=Vector3.one *0.95f;
 				cardBlockObjects[i,j].renderer.material.mainTexture = (Texture2D)Resources.Load(cardsOnBoard[i,j].ToString());
 			}
 		}
@@ -751,6 +763,8 @@ public class Manager : MonoBehaviour
 		
 		yield return new WaitForSeconds(0.5f);
 		destroyCombo();
+		destroyDamageNumber();
+
 		in_checking_hand=false;
 		available_checkhand=false;
 		available_shuffle=true;		
@@ -788,15 +802,90 @@ public class Manager : MonoBehaviour
 	}
 	
 	private IEnumerator attackAnimation(){
-		//yield return new WaitForSeconds(0.5f);		
-		audio.PlayOneShot(handAudio);			
-		Vector3 movePos =targetEnemyGameObject.transform.position;
-		movePos.x-=0.0625f;
-		iTween.PunchPosition(targetEnemyGameObject, iTween.Hash("x", movePos.x));				
+		yield return new WaitForSeconds(0.25f);				
 		
-		targetEnemy.HP-=50;
-		targetEnemyGameObject.transform.GetChild(1).GetComponent<HPBar>().AddjustCurrentHP(-50);
-		activeMonsterGameObject.transform.GetChild(2).GetComponent<SPBar>().AddjustCurrentSP(-50);	
+		Vector3 tmpVectorMonster = activeMonsterGameObject.transform.position;
+		tmpVectorMonster.x+=0.5f;
+		tmpVectorMonster.y-=0.5f;
+		tmpVectorMonster.z=0.5f;
+		
+		int skill_type =(int)activeSkill.transform.position.y;
+		GameObject skillBlock=null;
+		float r=1;
+		float g=1;
+		float b=1;
+		switch(skill_type){
+			case 1:
+				skillBlock = (GameObject)Instantiate(WindEffectPrefab, tmpVectorMonster, Quaternion.identity);	
+				r=112/255f;
+				g=219/255f;
+				b=0;
+				break;
+			case 0:
+				skillBlock = (GameObject)Instantiate(IceEffectPrefab, tmpVectorMonster, Quaternion.identity);	
+				r=0f;
+				g=116/255f;
+				b=1;
+				break;
+			case -1:
+				skillBlock = (GameObject)Instantiate(NormalEffectPrefab, tmpVectorMonster, Quaternion.identity);
+				r=1f;
+				g=1f;
+				b=1f;
+				break;
+			case -2:
+				skillBlock = (GameObject)Instantiate(ThunderEffectPrefab, tmpVectorMonster, Quaternion.identity);
+				r=162/255f;
+				g=0f;
+				b=1;
+				break;
+			case -3:
+				skillBlock = (GameObject)Instantiate(FireEffectPrefab, tmpVectorMonster, Quaternion.identity);	
+				r=1f;
+				g=70/255f;
+				b=0;
+				break;			
+		}				
+		yield return new WaitForSeconds(0.25f);
+		Vector3 tmpVectorEnemy = targetEnemyGameObject.transform.position;
+		tmpVectorEnemy.x+=1.0f;
+		tmpVectorEnemy.y-=1.0f;
+		iTween.MoveTo(skillBlock,iTween.Hash("x",tmpVectorEnemy.x,"y",tmpVectorEnemy.y,"time",0.125f,"easetype","easeOutSine"));		
+		yield return new WaitForSeconds(0.25f);
+		audio.PlayOneShot(skillAudio);
+		
+		targetEnemyGameObject.transform.GetChild(0).renderer.material.shader=fadeShader;
+		iTween.ColorTo(targetEnemyGameObject.transform.GetChild(0).gameObject, iTween.Hash("r",r,"g",g,"b",b,"a",1.0f,"looptype","pingPong","time",0.125f));
+		yield return new WaitForSeconds(1.0f);
+		
+		DestroyImmediate(skillBlock);
+		targetEnemyGameObject.transform.GetChild(0).renderer.material.shader=lightShader;
+		audio.PlayOneShot(handAudio);
+		
+		iTween.PunchPosition(targetEnemyGameObject, iTween.Hash("amount", Vector3.right));				
+		
+		List<GameObject> numberDamageBlock=new List<GameObject>();
+		for(int k=0;k<3;k++){
+			Vector3 tmpPos = targetEnemyGameObject.transform.position;
+			tmpPos.y-=1.5f;
+			tmpPos.x+=k*0.3f+0.6f;
+			tmpPos.z=0.5f;
+			GameObject damageBlock = (GameObject)Instantiate(DamageNumberPrefab, tmpPos, Quaternion.Euler(0.0f,-180.0f,0.0f));
+			damageBlock.tag="DamageNumber";
+			damageBlock.transform.localScale=new Vector3(0.3f,0.3f,0.3f);
+			numberDamageBlock.Add(damageBlock);
+		}
+		yield return new WaitForSeconds(0.125f);
+		
+		foreach(GameObject j in numberDamageBlock){
+			iTween.PunchPosition(j,iTween.Hash("amount", Vector3.up));
+			yield return new WaitForSeconds(0.125f);
+		}
+		
+		targetEnemy.HP-=20;
+		//activeMonster.SP-=10;
+		targetEnemyGameObject.transform.GetChild(1).GetComponent<HPBar>().AddjustCurrentHP(-20);
+		activeMonsterGameObject.transform.GetChild(2).GetComponent<SPBar>().AddjustCurrentSP(-10);	
 		
 		if(targetEnemy.HP<=0){
 			targetEnemy.HP=0;
@@ -809,9 +898,10 @@ public class Manager : MonoBehaviour
 		reset();
 		selectedCards.Clear();		
 		selectedBlockObjects  = new GameObject[Screen.width, Screen.height];	
-		removeObjectByTag("Picker");		
+		removeObjectByTag("Picker");
+		destroyDamageNumber();
 		available_shuffle=false;	
-		yield return new WaitForSeconds(1.0f);
+		yield return new WaitForSeconds(0.5f);
 		StartCoroutine(moveOut());
 		StartCoroutine(moveBackDeal());						
 		swapMonster();
@@ -852,13 +942,18 @@ public class Manager : MonoBehaviour
 			audio.PlayOneShot(arcadeAudio);
 			DestroyImmediate(largeComboNumber);
 			if(numberOnePairs>0){
-				largeComboNumber= (GameObject)Instantiate(LargeComboNumberPrefab, new Vector3(0.5f,0.5f,0), Quaternion.identity);
-				iTween.ScaleTo(largeComboNumber,iTween.Hash("scale",new Vector3(0.125f,0.125f,0), "delay", .1,"oncomplete","moveOnePairsAnimationBack"));
-				largeComboType = (GameObject)Instantiate(LargeComboTypePrefab, new Vector3(0.5f,0.5f,0), Quaternion.identity);
-				iTween.ScaleTo(largeComboType,iTween.Hash("scale",new Vector3(0.125f,0.125f,0), "delay", .1,"oncomplete","moveOnePairsAnimationBack"));
+				largeComboNumber= (GameObject)Instantiate(LargeComboNumberPrefab, new Vector3(0.0f,-1.0f,0.5f), Quaternion.Euler(0.0f,-180.0f,0.0f));
+				largeComboNumber.transform.localScale= new Vector3(0.5f,0.5f,0);
+				iTween.ScaleTo(largeComboNumber,iTween.Hash("scale",new Vector3(1.0f,1.0f,0), "delay", 0.25f,"oncomplete","moveOnePairsAnimationBack"));
+				largeComboType = (GameObject)Instantiate(LargeComboTypePrefab, new Vector3(0.0f,-2.0f,0.5f), Quaternion.Euler(0.0f,-180.0f,0.0f));
+				iTween.ScaleTo(largeComboType,iTween.Hash("scale",new Vector3(2.0f,2.0f,0), "delay", 0.25f,"oncomplete","moveOnePairsAnimationBack"));
 			}
-			largeComboNumber.guiTexture.texture = (Texture)Resources.Load(combos.Count.ToString()+"p");	
+			//largeComboNumber.guiTexture.texture = (Texture)Resources.Load(combos.Count.ToString()+"p");	
+			//largeComboNumber.renderer.material.SetTexture(combos.Count.ToString()+"p",(Texture)Resources.Load(combos.Count.ToString()+"p"));
 			canDisplayOnePairCombo=false;
+		}
+		if(largeComboNumber!=null){
+			largeComboNumber.renderer.material.mainTexture= (Texture)Resources.Load(combos.Count.ToString()+"p");
 		}
 					
 	}
@@ -942,7 +1037,7 @@ public class Manager : MonoBehaviour
 		}
 		smallComboType.tag="SmallCombo";
 		smallComboType.guiTexture.texture =(Texture)Resources.Load(res);		
-		largeComboType.guiTexture.texture =(Texture)Resources.Load(res);		
+		largeComboType.renderer.material.mainTexture =(Texture)Resources.Load(res);		
 		smallComboTypeBlock.Add(smallComboType);
 	}
 		
@@ -963,10 +1058,12 @@ public class Manager : MonoBehaviour
 	private void selectSkill(GameObject obj){
 		DestroyImmediate(selectSkillBlock);
 		Vector3 tmp = obj.transform.position;
+		tmp.x+=0.45f;
+		tmp.y-=0.45f;
 		tmp.z=0.5f;
 		selectSkillBlock = (GameObject)Instantiate(PickerPrefab, tmp, Quaternion.Euler(0.0f,180.0f,0.0f));	
 		selectSkillBlock.renderer.material.color = new Color(1,166.0f/255.0f,0,1);
-		selectSkillBlock.transform.localScale=Vector3.one *0.9f;
+		selectSkillBlock.transform.localScale=Vector3.one *0.45f;
 		selectSkillBlock.tag="Picker";
 		iTween.ColorTo(selectSkillBlock, iTween.Hash("r",180.0f/255.0f,"g",117.0f/255.0f,"b",0,"a",1,"looptype","pingPong","time",0.125f));
 	}
@@ -1120,6 +1217,13 @@ public class Manager : MonoBehaviour
 	private void destroyYellowLine(){
 		GameObject[] lines = GameObject.FindGameObjectsWithTag("Line");
 		foreach(GameObject l in lines){
+		    DestroyImmediate(l);
+		}
+	}
+	
+	private void destroyDamageNumber(){
+		GameObject[] damageNumbers = GameObject.FindGameObjectsWithTag("DamageNumber");
+		foreach(GameObject l in damageNumbers){
 		    DestroyImmediate(l);
 		}
 	}

@@ -4,6 +4,7 @@ using System.Collections;
 public class Skill{
 	
 	public string name;
+	public string image;
 	public int sp_requirement=10;
 	public int type=1;//1: Physical attack, 2: Magic attack, 3: Heal, 4~ To be defined later.
 	public int ap=10;//attack point of this skill
